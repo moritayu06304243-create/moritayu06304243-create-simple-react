@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドライビング反応速度テスト</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js");
+    const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/11.8.0/firebase-analytics.js");
+    const { getFirestore, collection, addDoc } = await import("https://www.gstatic.com/firebasejs/11.8.0/firebase-firestore.js");
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBjMM4C8GLvurEvl1x1N6Bz2_U8doJ4Ri4",
+      authDomain: "graduate-june1---light-off.firebaseapp.com",
+      projectId: "graduate-june1---light-off",
+      storageBucket: "graduate-june1---light-off.firebasestorage.app",
+      messagingSenderId: "394812699833",
+      appId: "1:394812699833:web:b3559aa6e21a36a5a01768",
+      measurementId: "G-X4M6G9WNEG"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firestoreCollection = collection;
+    window.firestoreAddDoc = addDoc;
+  } catch(e) {
+    console.warn('Firebase初期化スキップ:', e);
+  }
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; height: 100vh; width: 100vw; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
+  /* ===== スタート画面 ===== */
+  #start-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; align-items: flex-start; justify-content: center;
+    background: linear-gradient(135deg, #0a0a0f 0%, #0d1a2a 50%, #0a0a0f 100%);
+    overflow-y: auto; padding: 24px 0;
+  }
+  .start-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px; padding: 48px 56px; width: 420px; max-width: calc(100vw - 32px);
+    backdrop-filter: blur(20px); position: relative; overflow: visible;
+    margin: auto 0;
+  }
+  .start-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #00e5ff, #ff3d3d, transparent);
+  }
+  .game-title { font-size: 11px; letter-spacing: 6px; color: #00e5ff; text-transform: uppercase; margin-bottom: 8px; opacity: 0.8; }
+  .game-subtitle { font-size: 28px; font-weight: 700; margin-bottom: 8px; background: linear-gradient(90deg, #fff 60%, #888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.2; }
+  .game-desc { font-size: 12px; color: #666; margin-bottom: 36px; letter-spacing: 1px; }
+  .field-label { font-size: 10px; letter-spacing: 3px; color: #00e5ff; text-transform: uppercase; margin-bottom: 8px; opacity: 0.7; }
+  .field-group { margin-bottom: 24px; }
+  input[type="number"] { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 2px; color: #fff; font-family: 'Courier New', monospace; font-size: 16px; padding: 12px 16px; outline: none; transition: border-color 0.2s; }
+  input[type="number"]:focus { border-color: #00e5ff; }
+  input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .gender-options { display: flex; gap: 12px; }
+  .gender-option { flex: 1; }
+  .gender-option input[type="radio"] { display: none; }
+  .gender-option label { display: block; text-align: center; padding: 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 2px; font-size: 13px; cursor: pointer; transition: all 0.2s; letter-spacing: 2px; }
+  .gender-option input:checked + label { border-color: #00e5ff; background: rgba(0,229,255,0.08); color: #00e5ff; }
+  .gender-option label:hover { border-color: rgba(255,255,255,0.3); }
+  .start-btn { width: 100%; background: linear-gradient(90deg, #00e5ff, #0099ff); border: none; border-radius: 2px; color: #000; font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; letter-spacing: 4px; padding: 16px; cursor: pointer; text-transform: uppercase; margin-top: 8px; transition: opacity 0.2s, transform 0.1s; }
+  .start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .controls-hint { margin-top: 20px; padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.12); border: 1px solid rgba(0,229,255,0.15); border-radius: 2px; font-size: 11px; color: #aaa; line-height: 2.2; letter-spacing: 1px; background: rgba(0,229,255,0.04); }
+  .controls-hint span { color: #00e5ff; font-weight: 700; }
+
+  /* ===== ルール説明画面 ===== */
+  #rules-screen {
+    display: none; position: fixed; inset: 0; z-index: 1100;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0a0a0f 0%, #0d1a2a 50%, #0a0a0f 100%);
+    overflow-y: auto; padding: 24px 0;
+  }
+  #rules-screen.visible { display: flex; }
+  .rules-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px; padding: 48px 56px; width: 480px; max-width: calc(100vw - 32px);
+    backdrop-filter: blur(20px); position: relative; overflow: visible;
+    margin: auto;
+  }
+  .rules-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #00e5ff, #ff3d3d, transparent);
+  }
+  .rules-title-label { font-size: 11px; letter-spacing: 6px; color: #00e5ff; text-transform: uppercase; margin-bottom: 8px; opacity: 0.8; }
+  .rules-title { font-size: 26px; font-weight: 700; margin-bottom: 28px; background: linear-gradient(90deg, #fff 60%, #888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.3; }
+  .rules-section { margin-bottom: 24px; }
+  .rules-section-title { font-size: 9px; letter-spacing: 3px; color: #00e5ff; text-transform: uppercase; margin-bottom: 12px; opacity: 0.8; border-bottom: 1px solid rgba(0,229,255,0.15); padding-bottom: 6px; }
+  .rules-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; font-size: 13px; color: #ccc; line-height: 1.6; }
+  .rules-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .rules-key { display: inline-block; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.3); border-radius: 2px; color: #00e5ff; font-size: 10px; letter-spacing: 2px; padding: 2px 8px; font-family: 'Courier New', monospace; white-space: nowrap; }
+  .rules-start-btn { width: 100%; background: linear-gradient(90deg, #00e5ff, #0099ff); border: none; border-radius: 2px; color: #000; font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; letter-spacing: 4px; padding: 16px; cursor: pointer; text-transform: uppercase; margin-top: 8px; transition: opacity 0.2s, transform 0.1s; }
+  .rules-start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  /* ===== HUD ===== */
+  #ui { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 500; pointer-events: none; }
+  .hud-bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, transparent 100%); }
+  .hud-item { display: flex; flex-direction: column; align-items: center; }
+  .hud-label { font-size: 9px; letter-spacing: 3px; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-bottom: 2px; }
+  .hud-value { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -1px; }
+  .hud-unit { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 2px; }
+
+  /* ===== アラート ===== */
+  @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; box-shadow: 0 0 20px rgba(255,60,60,0.3); } }
+
+  #react-flash { display: none; position: fixed; inset: 0; z-index: 550; background: rgba(0,229,255,0.08); pointer-events: none; }
+  @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+
+  #hit-flash { display: none; position: fixed; inset: 0; z-index: 551; background: rgba(255,0,0,0.22); pointer-events: none; }
+  @keyframes hitFlash { from { opacity: 1; } to { opacity: 0; } }
+
+
+
+
+  /* ===== ボタン ===== */
+  #exit-btn {
+    display: none; position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    background: rgba(255,61,61,0.15); border: 1px solid rgba(255,61,61,0.4);
+    border-radius: 3px; color: rgba(255,255,255,0.6); font-family: 'Courier New', monospace;
+    font-size: 10px; letter-spacing: 3px; padding: 10px 18px;
+    cursor: pointer; text-transform: uppercase; transition: all 0.2s; pointer-events: auto;
+  }
+  #exit-btn:hover { background: #ff3d3d; color: #000; border-color: #ff3d3d; }
+
+  #controls-overlay {
+    display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 500; font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.2);
+    text-transform: uppercase; pointer-events: none; white-space: nowrap;
+  }
+
+  /* ===== タッチUI ===== */
+  #touch-controls {
+    display: none; position: fixed; bottom: 90px; left: 0; right: 0;
+    z-index: 600; justify-content: space-between; align-items: center;
+    padding: 0 20px; pointer-events: none;
+  }
+  .touch-btn {
+    pointer-events: all; width: 76px; height: 76px; background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: #fff;
+    font-size: 22px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  }
+  #touch-brake {
+    width: 82px; height: 82px; font-size: 11px; letter-spacing: 2px;
+    background: rgba(180,0,0,0.2); border-color: rgba(255,60,60,0.5); color: #ff6060;
+  }
+  #touch-accel {
+    width: 82px; height: 82px; font-size: 11px; letter-spacing: 2px;
+    background: rgba(0,160,60,0.2); border-color: rgba(0,255,100,0.5); color: #00ff66;
+  }
+  #touch-react {
+    display: none; position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    z-index: 990; pointer-events: all; width: 160px; height: 56px;
+    background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.4); border-radius: 4px;
+    color: #00e5ff; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  }
+</style>
+</head>
+<body>
+
+<!-- スタート画面 -->
+<div id="start-screen">
+  <div class="start-card">
+    <div class="game-title">Reaction Test</div>
+    <div class="game-subtitle">ドライビング<br>反応速度テスト</div>
+    <div class="game-desc">// 前方の人間（青い物体）に素早く反応しよう</div>
+    <div class="field-group">
+      <div class="field-label">年齢</div>
+      <input type="number" id="input-age" placeholder="例: 30" min="1" max="120">
+    </div>
+    <div class="field-group">
+      <div class="field-label">性別</div>
+      <div class="gender-options">
+        <div class="gender-option"><input type="radio" name="gender" id="g-male" value="男性"><label for="g-male">男性</label></div>
+        <div class="gender-option"><input type="radio" name="gender" id="g-female" value="女性"><label for="g-female">女性</label></div>
+        <div class="gender-option"><input type="radio" name="gender" id="g-other" value="その他"><label for="g-other">その他</label></div>
+      </div>
+    </div>
+    <button class="start-btn" id="start-btn">スタート</button>
+    <div class="controls-hint">
+      <div style="font-size:9px;letter-spacing:3px;color:#00e5ff;text-transform:uppercase;margin-bottom:10px;opacity:0.8;">操作方法</div>
+      <span>A / ←</span> 左移動 &nbsp;|&nbsp; <span>D / →</span> 右移動<br>
+      <span>W / ↑</span> アクセル &nbsp;|&nbsp; <span>S / ↓</span> ブレーキ
+    </div>
+  </div>
+</div>
+
+<!-- ルール説明画面 -->
+<div id="rules-screen">
+  <div class="rules-card">
+    <div class="rules-title-label">How to Play</div>
+    <div class="rules-title">ゲームの<br>ルール説明</div>
+
+    <div class="rules-section">
+      <div class="rules-section-title">ゲーム概要</div>
+      <div class="rules-item">
+        <span class="rules-icon">🚗</span>
+        <span>車を運転しながら、前方に現れる<strong style="color:#fff">人間（青い物体）</strong>に素早く反応するテストです。反応時間が計測・記録されます。</span>
+      </div>
+      <div class="rules-item">
+        <span class="rules-icon">⏱️</span>
+        <span>テスト時間は <strong style="color:#ffee44">15分間</strong>。時間内にできるだけ多くの反応を計測します。</span>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-section-title">反応の方法</div>
+      <div class="rules-item">
+        <span class="rules-icon">🟦</span>
+        <span><strong style="color:#fff">人間（青い物体）</strong>が前方に近づいたら、画面のREACTボタンをタップして反応してください。</span>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-section-title">操作方法</div>
+      <div class="rules-item">
+        <span class="rules-icon">↔️</span>
+        <span>左右移動：<span class="rules-key">A / ←</span> &nbsp; <span class="rules-key">D / →</span></span>
+      </div>
+      <div class="rules-item">
+        <span class="rules-icon">⬆️</span>
+        <span>アクセル：<span class="rules-key">W / ↑</span> &nbsp;&nbsp; ブレーキ：<span class="rules-key">S / ↓</span></span>
+      </div>
+    </div>
+
+    <button class="rules-start-btn" id="rules-start-btn">ゲームスタート →</button>
+  </div>
+</div>
+
+<div id="ui">
+  <div class="hud-bar">
+    <div class="hud-item"><div class="hud-label">速度</div><div class="hud-value" id="speed">0</div><div class="hud-unit">km/h</div></div>
+    <div class="hud-item"><div class="hud-label">残り時間</div><div class="hud-value" id="timer" style="color:#ffee44">15:00</div><div class="hud-unit">min</div></div>
+    <div class="hud-item"><div class="hud-label">計測回数</div><div class="hud-value" id="count">0</div><div class="hud-unit">回</div></div>
+    <div class="hud-item"><div class="hud-label">衝突回数</div><div class="hud-value" id="hit-count" style="color:#ff4444">0</div><div class="hud-unit">回</div></div>
+  </div>
+</div>
+
+<div id="react-flash"></div>
+<div id="hit-flash"></div>
+
+<!-- ゲーム終了画面 -->
+<div id="gameover-screen" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.88); display:none; align-items:center; justify-content:center; flex-direction:column;">
+  <div style="text-align:center; padding:48px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12); border-radius:4px; min-width:360px; position:relative; overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#00e5ff,#ff3d3d,transparent);"></div>
+    <div style="font-size:11px;letter-spacing:6px;color:#00e5ff;text-transform:uppercase;margin-bottom:12px;opacity:0.8;">Result</div>
+    <div style="font-size:32px;font-weight:700;margin-bottom:6px;background:linear-gradient(90deg,#fff 60%,#888);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">テスト終了</div>
+    <div style="font-size:12px;color:#555;letter-spacing:2px;margin-bottom:32px;">15分間お疲れさまでした</div>
+    <div style="display:flex;gap:24px;justify-content:center;margin-bottom:32px;">
+      <div style="text-align:center;">
+        <div style="font-size:10px;letter-spacing:3px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">計測回数</div>
+        <div style="font-size:36px;font-weight:700;color:#00e5ff;" id="go-count">0</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.3);letter-spacing:2px;">回</div>
+      </div>
+
+      <div style="text-align:center;">
+        <div style="font-size:10px;letter-spacing:3px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">衝突回数</div>
+        <div style="font-size:36px;font-weight:700;color:#ff4444;" id="go-hit">0</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.3);letter-spacing:2px;">回</div>
+      </div>
+
+      <div style="text-align:center;">
+        <div style="font-size:10px;letter-spacing:3px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:4px;">総出現数</div>
+        <div style="font-size:36px;font-weight:700;color:#aaaaaa;" id="go-total">0</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.3);letter-spacing:2px;">回</div>
+      </div>
+    </div>
+    <button id="go-save-btn" style="width:100%;background:linear-gradient(90deg,#00e5ff,#0099ff);border:none;border-radius:2px;color:#000;font-family:'Courier New',monospace;font-size:12px;font-weight:700;letter-spacing:4px;padding:16px;cursor:pointer;text-transform:uppercase;margin-bottom:12px;">データを保存</button>
+    <button id="go-reload-btn" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:2px;color:rgba(255,255,255,0.4);font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;padding:12px;cursor:pointer;text-transform:uppercase;">もう一度プレイ</button>
+  </div>
+</div>
+
+<button id="exit-btn">終了 / 保存</button>
+<div id="controls-overlay">← A / → D 移動 &nbsp;|&nbsp; W / ↑ アクセル &nbsp;|&nbsp; S / ↓ ブレーキ</div>
+
+<!-- タッチ -->
+<div id="touch-controls">
+  <div class="touch-btn" id="touch-left">◀</div>
+  <div class="touch-btn" id="touch-brake" style="display:none"></div>
+  <div class="touch-btn" id="touch-accel" style="display:none"></div>
+  <div class="touch-btn" id="touch-right">▶</div>
+</div>
+<div id="touch-react">REACT!</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // ===== 状態変数 =====
+    var scene, camera, renderer, animId;
+    var obstacles = [];
+    var keys = {}, touchLeft = false, touchRight = false, touchBrake = false, touchAccel = false;
+    var spd = 0.5;
+    var SPD_BASE     = 0.5;    // 初期速度
+    var SPD_MAX      = 1.2;    // 通常最高速度（120km/h）
+    var SPD_ACCEL_MAX= 1.2;    // アクセル時最高速度（120km/h）
+    var SPD_BRAKE_MIN= 0.05;   // ブレーキ中の最低速度
+    var accelerating = false;
+    var braking = false;
+    var userData = { playerId: '', age: '', gender: '' };
+    var sessionResults = [];
+    var hitCount = 0;          // 衝突回数
+    var missCount = 0;         // 見逃し回数
+    var totalAppeared = 0;     // 総出現数
+    var lastHitTime = 0;       // 最後に衝突した時刻（無敵時間用）
+    var HIT_INVINCIBLE = 1200; // 衝突後の無敵時間(ms)
+    var activeObstacle = null;
+    var gameStartTime   = 0;
+    var GAME_DURATION   = 15 * 60 * 1000; // 15分（ms）
+    var gameOver        = false;
+
+    var OB_TRIGGER = 120;      // この距離で障害物表示・反応計測開始
+
+    // ===== マテリアル共有 =====
+    var MAT = {
+        road:    new THREE.MeshPhongMaterial({ color: 0x1a1a1a }),
+        white:   new THREE.MeshBasicMaterial({ color: 0xffffff }),
+        yellow:  new THREE.MeshBasicMaterial({ color: 0xffee00, transparent: true, opacity: 0.85 }),
+        skin:    new THREE.MeshPhongMaterial({ color: 0xffdbac }),
+        blue:    new THREE.MeshPhongMaterial({ color: 0x2255cc }),
+        carRed:  new THREE.MeshPhongMaterial({ color: 0xdd2222 }),
+        carGlass:new THREE.MeshPhongMaterial({ color: 0xaaccff, transparent: true, opacity: 0.55 }),
+        cone:    new THREE.MeshPhongMaterial({ color: 0xff4400 }),
+        coneW:   new THREE.MeshPhongMaterial({ color: 0xffffff }),
+        pole:    new THREE.MeshPhongMaterial({ color: 0x555555 }),
+        asphalt: new THREE.MeshPhongMaterial({ color: 0x2a2a2a }),
+        curb:    new THREE.MeshPhongMaterial({ color: 0x888888 }),
+        trunk:   new THREE.MeshPhongMaterial({ color: 0x5c3a1e }),
+        leaf:    new THREE.MeshPhongMaterial({ color: 0x2d6a2d }),
+        building:new THREE.MeshPhongMaterial({ color: 0x334455 }),
+    };
+
+    // ===== オブジェクト生成 =====
+    function makeHuman() {
+        var g = new THREE.Group();
+        var head = new THREE.Mesh(new THREE.SphereGeometry(0.45,8,8), MAT.skin.clone());
+        head.position.y = 2.6; g.add(head);
+        var body = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.28,1.4,8), MAT.blue.clone());
+        body.position.y = 1.55; g.add(body);
+        var legL = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.1,1.0,6), MAT.blue.clone());
+        legL.position.set(-0.18,0.5,0); g.add(legL);
+        var legR = legL.clone(); legR.position.x = 0.18; g.add(legR);
+        return g;
+    }
+
+    function makeCar() {
+        var g = new THREE.Group();
+        var body = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.9,4.2), MAT.carRed.clone());
+        body.position.y = 0.8; g.add(body);
+        var roof = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.75,2.2), MAT.carGlass.clone());
+        roof.position.y = 1.65; g.add(roof);
+        var wGeo = new THREE.CylinderGeometry(0.32,0.32,0.22,12);
+        var wMat = new THREE.MeshPhongMaterial({color:0x111111});
+        [[-1.25,0.35,1.3],[1.25,0.35,1.3],[-1.25,0.35,-1.3],[1.25,0.35,-1.3]].forEach(function(p){
+            var w = new THREE.Mesh(wGeo, wMat); w.rotation.z = Math.PI/2;
+            w.position.set(p[0],p[1],p[2]); g.add(w);
+        });
+        return g;
+    }
+
+    function makeCone() {
+        var g = new THREE.Group();
+        var body = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.65,1.4,12), MAT.cone.clone());
+        body.position.y = 0.7; g.add(body);
+        var stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.42,0.18,12), MAT.coneW.clone());
+        stripe.position.y = 0.55; g.add(stripe);
+        var base = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.75,0.07,12), MAT.cone.clone());
+        base.position.y = 0.035; g.add(base);
+        return g;
+    }
+
+    // 障害物ラッパー
+    function makeObstacleGroup(z) {
+        var types = ['コーン', '人間'];
+        var label = types[Math.floor(Math.random()*types.length)];
+        var mesh;
+        if      (label === '人間')   mesh = makeHuman();
+        else if (label === '自動車') mesh = makeCar();
+        else                         mesh = makeCone();
+
+        var g = new THREE.Group(); g.add(mesh);
+        g.position.set((Math.random()-0.5)*14, 0, z);
+        g.visible = false;
+        g._triggered  = false;
+        g._reacted    = false;
+        g._typeLabel  = label;
+        return g;
+    }
+
+    // ===== ゲーム終了 =====
+    function endGame() {
+        gameOver = true;                    // 先にフラグを立ててループを止める
+        cancelAnimationFrame(animId);
+
+        var count = sessionResults.filter(function(r){ return r['結果'] === '回避成功'; }).length;
+        document.getElementById('go-count').textContent = count;
+        document.getElementById('go-hit').textContent   = hitCount;
+        document.getElementById('go-miss').textContent  = missCount;
+        document.getElementById('go-total').textContent = totalAppeared;
+
+        var gs = document.getElementById('gameover-screen');
+        gs.style.display = 'flex';
+    }
+
+
+
+
+
+
+
+    function showHitFlash() {
+        var f = document.getElementById('hit-flash');
+        f.style.animation = 'none';
+        f.style.display = 'block';
+        f.style.opacity = '1';
+        void f.offsetWidth;
+        f.style.animation = 'hitFlash 0.5s ease-out forwards';
+        setTimeout(function() { f.style.display = 'none'; }, 500);
+    }
+
+    function getTimeBlock(elapsedSec) {
+        if (elapsedSec < 300)  return '0-5分';
+        if (elapsedSec < 600)  return '5-10分';
+        return '10-15分';
+    }
+
+    function recordMiss(label) {
+        var now = new Date();
+        var elapsedSec = parseFloat(((performance.now() - gameStartTime) / 1000).toFixed(2));
+        var entry = {
+            'プレイヤーID': userData.playerId,
+            '年齢': userData.age, '性別': userData.gender,
+            '対象物': label,
+            '結果': '回避',
+            '経過時間(秒)': elapsedSec,
+            '時間ブロック': getTimeBlock(elapsedSec),
+            '総出現数': totalAppeared,
+            '日時': now.toLocaleString()
+        };
+        sessionResults.push(entry);
+        if (window.db && window.firestoreAddDoc && window.firestoreCollection) {
+            window.firestoreAddDoc(window.firestoreCollection(window.db, 'results'), {
+                playerId: userData.playerId,
+                targetType: label,
+                result: 'miss',
+                playedAt: now.toISOString(),
+                age: userData.age,
+                gender: userData.gender
+            }).catch(function(e) { console.error('Firestore保存エラー:', e); });
+        }
+    }
+
+    function recordHit(label) {
+        hitCount++;
+        document.getElementById('hit-count').textContent = hitCount;
+        var now = new Date();
+        var elapsedSec = parseFloat(((performance.now() - gameStartTime) / 1000).toFixed(2));
+        var entry = {
+            'プレイヤーID': userData.playerId,
+            '年齢': userData.age, '性別': userData.gender,
+            '対象物': label,
+            '結果': '衝突',
+            '経過時間(秒)': elapsedSec,
+            '時間ブロック': getTimeBlock(elapsedSec),
+            '総出現数': totalAppeared,
+            '日時': now.toLocaleString()
+        };
+        sessionResults.push(entry);
+        if (window.db && window.firestoreAddDoc && window.firestoreCollection) {
+            window.firestoreAddDoc(window.firestoreCollection(window.db, 'results'), {
+                playerId: userData.playerId,
+                targetType: label,
+                result: 'hit',
+                playedAt: now.toISOString(),
+                age: userData.age,
+                gender: userData.gender
+            }).catch(function(e) { console.error('Firestore保存エラー:', e); });
+        }
+    }
+
+    // ===== ボタン押下記録 =====
+    function recordButtonPress(action) {
+        if (gameOver || !gameStartTime) return;
+        var elapsedSec = parseFloat(((performance.now() - gameStartTime) / 1000).toFixed(2));
+        var now = new Date();
+        var entry = {
+            'プレイヤーID': userData.playerId,
+            '年齢': userData.age,
+            '性別': userData.gender,
+            '操作': action,
+            '経過時間(秒)': elapsedSec,
+            '時間ブロック': getTimeBlock(elapsedSec),
+            '日時': now.toLocaleString()
+        };
+        sessionResults.push(entry);
+    }
+
+    // ===== 背景プール =====
+    var sceneryPools = { buildings: [], trees: [], lamps: [], dashLines: [], roadSegs: [] };
+    var RECYCLE_AHEAD = 400; // カメラより何m先まで配置するか
+    var RECYCLE_BEHIND = 60; // カメラより何m後ろで回収するか
+
+    function buildSceneryPools() {
+        // ── 道路セグメント（各100m、20本でプール）──
+        var segLen = 100;
+        for (var r = 0; r < 20; r++) {
+            var seg = new THREE.Mesh(new THREE.PlaneGeometry(16, segLen), MAT.road.clone());
+            seg.rotation.x = -Math.PI / 2;
+            seg._len = segLen;
+            seg.position.set(0, 0, -(r * segLen + segLen / 2));
+            scene.add(seg);
+            sceneryPools.roadSegs.push(seg);
+        }
+
+        // ── 縁石（左右各20本）──
+        var curbMat = MAT.curb.clone();
+        var curbLen = 100;
+        [-8.2, 8.2].forEach(function(cx) {
+            for (var c = 0; c < 20; c++) {
+                var curb = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.12, curbLen), curbMat);
+                curb.position.set(cx, 0.06, -(c * curbLen + curbLen / 2));
+                curb._len = curbLen;
+                scene.add(curb);
+                sceneryPools.buildings.push(curb); // 道路系もbuildingsプールで管理
+            }
+        });
+
+        // ── センター破線（40本）──
+        var dashMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.75});
+        var lineMat = MAT.white.clone();
+        for (var d = 0; d < 40; d++) {
+            var dl = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 5), dashMat.clone());
+            dl.rotation.x = -Math.PI / 2;
+            dl.position.set(0, 0.01, -(d * 15));
+            dl._spacing = 15;
+            scene.add(dl);
+            sceneryPools.dashLines.push(dl);
+        }
+        // 端線（左右をdashLinesプールへ）
+        [-6.2, 6.2].forEach(function(ex) {
+            for (var e = 0; e < 20; e++) {
+                var el = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 100), lineMat.clone());
+                el.rotation.x = -Math.PI / 2;
+                el.position.set(ex, 0.01, -(e * 100 + 50));
+                el._len = 100;
+                scene.add(el);
+                sceneryPools.dashLines.push(el);
+            }
+        });
+
+        // ── 建物（左右各12棟）──
+        var bColors = [0x1e2d3d, 0x2a3a4a, 0x1a2535, 0x2d3d4e, 0x263344];
+        var winMat = new THREE.MeshBasicMaterial({color:0xffffaa, transparent:true, opacity:0.55});
+        for (var b = 0; b < 24; b++) {
+            var side = b % 2 === 0 ? 1 : -1;
+            var h = 4 + Math.random() * 18;
+            var bMat = new THREE.MeshPhongMaterial({color: bColors[b % bColors.length]});
+            var bld = new THREE.Mesh(new THREE.BoxGeometry(3 + Math.random() * 5, h, 3 + Math.random() * 5), bMat);
+            bld.position.set(side * (12 + Math.random() * 7), h / 2, -(b * 80 + 40));
+            bld._spacing = 24 * 80; // 総スパン
+            bld._side = side;
+            scene.add(bld);
+            sceneryPools.buildings.push(bld);
+            // 窓
+            var win = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), winMat.clone());
+            win.rotation.y = side > 0 ? Math.PI : 0;
+            win.position.set(bld.position.x - side * 1.6, 1 + Math.random() * (h - 2), bld.position.z);
+            win._follow = bld;
+            scene.add(win);
+        }
+
+        // ── 街路樹（40本）──
+        var trunkM = MAT.trunk.clone(), leafM = MAT.leaf.clone();
+        for (var t = 0; t < 40; t++) {
+            var tg = new THREE.Group();
+            var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 6), trunkM.clone());
+            trunk.position.y = 1.5; tg.add(trunk);
+            var leaves = new THREE.Mesh(new THREE.SphereGeometry(1.3 + Math.random() * 0.4, 7, 7), leafM.clone());
+            leaves.position.y = 3.6; tg.add(leaves);
+            tg.position.set((t % 2 === 0 ? 1 : -1) * 8.8, 0, -(t * 38 + 15));
+            tg._spacing = 40 * 38;
+            tg._side = (t % 2 === 0 ? 1 : -1);
+            scene.add(tg);
+            sceneryPools.trees.push(tg);
+        }
+
+        // ── 街灯（30本、PointLight付き）──
+        var lampPoleMat = new THREE.MeshPhongMaterial({color:0x888899});
+        var lampGlowMat = new THREE.MeshBasicMaterial({color:0xfff5cc, transparent:true, opacity:0.92});
+        var spotMat2 = new THREE.MeshBasicMaterial({color:0xffe8a0, transparent:true, opacity:0.08, side:THREE.DoubleSide});
+        for (var li = 0; li < 30; li++) {
+            var lx = li % 2 === 0 ? 9.5 : -9.5;
+            var lz = -(li * 110 + 30);
+            var lg = new THREE.Group();
+
+            var lpole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 5.5, 6), lampPoleMat.clone());
+            lpole.position.y = 2.75; lg.add(lpole);
+
+            var armM = new THREE.MeshPhongMaterial({color:0x777788});
+            var larm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 5), armM);
+            larm.rotation.z = Math.PI / 2;
+            larm.position.set(lx > 0 ? -0.9 : 0.9, 5.5, 0); lg.add(larm);
+
+            var gx = lx > 0 ? -1.8 : 1.8;
+            var lglow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), lampGlowMat.clone());
+            lglow.position.set(gx, 5.5, 0); lg.add(lglow);
+
+            var lspot = new THREE.Mesh(new THREE.CircleGeometry(5, 12), spotMat2.clone());
+            lspot.rotation.x = -Math.PI / 2;
+            lspot.position.set(gx, 0.02, 0); lg.add(lspot);
+
+            var pl = new THREE.PointLight(0xffe8a0, 1.6, 28);
+            pl.position.set(gx + lx, 5.5, lz); scene.add(pl);
+            lg._light = pl;
+
+            lg.position.set(lx, 0, lz);
+            lg._spacing = 30 * 110;
+            lg._lx = lx;
+            scene.add(lg);
+            sceneryPools.lamps.push(lg);
+        }
+    }
+
+    function recycleScenery() {
+        var cz = camera.position.z;
+        var ahead = cz - RECYCLE_AHEAD;
+        var behind = cz + RECYCLE_BEHIND;
+
+        // 道路セグメント＋縁石
+        sceneryPools.roadSegs.forEach(function(seg) {
+            var sz = seg.position.z;
+            var half = seg._len / 2;
+            if (sz - half > behind) {
+                seg.position.z -= seg._len * sceneryPools.roadSegs.length;
+            } else if (sz + half < ahead) {
+                seg.position.z += seg._len * sceneryPools.roadSegs.length;
+            }
+        });
+
+        // 破線・端線
+        sceneryPools.dashLines.forEach(function(dl) {
+            if (dl._spacing) {
+                // 端線セグメント
+                var half = dl._len / 2;
+                if (dl.position.z - half > behind) dl.position.z -= dl._len * 20;
+                else if (dl.position.z + half < ahead) dl.position.z += dl._len * 20;
+            } else {
+                // 破線
+                if (dl.position.z > behind) dl.position.z -= dl._spacing || (40 * 15);
+                else if (dl.position.z < ahead) dl.position.z += dl._spacing || (40 * 15);
+            }
+        });
+
+        // 建物（縁石含む）
+        sceneryPools.buildings.forEach(function(obj) {
+            if (!obj._len) return; // 縁石はroadSegsと同じ処理
+            var oz = obj.position.z;
+            if (oz > behind) obj.position.z -= 24 * 80;
+            else if (oz < ahead) obj.position.z += 24 * 80;
+        });
+
+        // 街路樹
+        sceneryPools.trees.forEach(function(tg) {
+            if (tg.position.z > behind) tg.position.z -= tg._spacing;
+            else if (tg.position.z < ahead) tg.position.z += tg._spacing;
+        });
+
+        // 街灯
+        sceneryPools.lamps.forEach(function(lg) {
+            if (lg.position.z > behind) {
+                lg.position.z -= lg._spacing;
+                lg._light.position.z -= lg._spacing;
+            } else if (lg.position.z < ahead) {
+                lg.position.z += lg._spacing;
+                lg._light.position.z += lg._spacing;
+            }
+        });
+    }
+
+    // ===== 初期化 =====
+    function init() {
+        document.getElementById('exit-btn').style.display = 'block';
+        document.getElementById('ui').style.display = 'block';
+        if ('ontouchstart' in window) {
+            document.getElementById('touch-controls').style.display = 'flex';
+            document.getElementById('touch-react').style.display = 'flex';
+        } else {
+            document.getElementById('controls-overlay').style.display = 'block';
+        }
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0d1520);
+        scene.fog = new THREE.FogExp2(0x0d1520, 0.0035);
+
+        camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 1.8, 5);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+        // 照明
+        scene.add(new THREE.AmbientLight(0x223344, 1.0));
+        var sun = new THREE.DirectionalLight(0xffffff, 0.7);
+        sun.position.set(8, 20, 10); scene.add(sun);
+        var headlight = new THREE.SpotLight(0xffffee, 2.5, 100, Math.PI/7, 0.4);
+        headlight.position.set(0, 1.5, 4);
+        headlight.target.position.set(0, 0, -60); scene.add(headlight); scene.add(headlight.target);
+
+        // ===== 街灯・道路・背景（リサイクルプール） =====
+        buildSceneryPools();
+
+        gameStartTime = performance.now();
+        gameOver      = false;
+
+        // 障害物（50個）
+        for (var i = 0; i < 50; i++) {
+            var ob = makeObstacleGroup(-100 - i * 60);
+            scene.add(ob); obstacles.push(ob);
+        }
+
+        animate();
+    }
+
+    // ===== アニメーションループ =====
+    function animate() {
+        animId = requestAnimationFrame(animate);
+
+        if (gameOver) return;
+
+        // ── タイマー更新 ──
+        var elapsed  = performance.now() - gameStartTime;
+        var remain   = Math.max(0, GAME_DURATION - elapsed);
+        var remSec   = Math.ceil(remain / 1000);
+        var mm = Math.floor(remSec / 60);
+        var ss = remSec % 60;
+        var timerEl = document.getElementById('timer');
+        timerEl.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
+        // 残り60秒以下で赤く警告
+        timerEl.style.color = remain <= 60000 ? '#ff4444' : (remain <= 180000 ? '#ffaa00' : '#ffee44');
+
+        if (remain <= 0) {
+            endGame();
+            return;
+        }
+
+        // 移動（左右）
+        if (keys['a'] || keys['arrowleft'] || touchLeft)
+            camera.position.x = Math.max(camera.position.x - 0.16, -5.8);
+        if (keys['d'] || keys['arrowright'] || touchRight)
+            camera.position.x = Math.min(camera.position.x + 0.16,  5.8);
+
+        // ブレーキ・アクセル判定
+        braking     = !!(keys['s'] || keys['arrowdown'] || touchBrake);
+        accelerating= !!(keys['w'] || keys['arrowup']   || touchAccel);
+
+        if (braking && !accelerating) {
+            // ブレーキ：急減速
+            spd = Math.max(spd * 0.88, SPD_BRAKE_MIN);
+        } else if (accelerating && !braking) {
+            // アクセル：高速加速
+            spd = Math.min(spd + 0.008, SPD_ACCEL_MAX);
+        } else {
+            // 何も押さない：徐々に基本速度へ収束
+            if (spd > SPD_MAX) {
+                spd = Math.max(spd - 0.004, SPD_MAX);   // アクセル解放→自然減速
+            } else {
+                spd = Math.min(spd + 0.00012, SPD_MAX); // 自然加速
+            }
+        }
+
+        camera.position.z -= spd;
+        camera.position.y = 1.8 + Math.sin(Date.now() * 0.0025) * 0.018;
+        // spd を現実的な km/h へマッピング（SPD_BASE=20km/h, SPD_MAX=60km/h, SPD_ACCEL_MAX=120km/h）
+        var kmh = Math.round(20 + (spd - SPD_BASE) / (SPD_ACCEL_MAX - SPD_BASE) * 100);
+        document.getElementById('speed').textContent = Math.max(0, kmh);
+
+        // ブレーキ・アクセル表示なし
+
+        var now = performance.now();
+
+        recycleScenery();
+
+        // ── 障害物 ──
+        obstacles.forEach(function(ob) {
+            var dz = camera.position.z - ob.position.z; // 正=手前
+
+            // 表示トリガー
+            if (!ob._triggered && dz > 0 && dz < OB_TRIGGER) {
+                ob.visible = true;
+                ob._triggered  = true;
+                ob._reacted    = false;
+                // 人間のみ：出現と同時にアクティブ化・計測開始
+                if (ob._typeLabel === '人間') {
+                    activeObstacle = ob;
+
+                    totalAppeared++;
+                }
+            }
+
+            // ── 衝突判定（可視・未反応・無敵時間外のみ）──
+            if (ob.visible && !ob._reacted) {
+                var dx = Math.abs(camera.position.x - ob.position.x);
+                var distZ = Math.abs(camera.position.z - ob.position.z);
+                var HIT_W = 1.2; // 横幅の衝突半径
+                var HIT_D = 1.5; // 奥行きの衝突半径
+                if (dx < HIT_W && distZ < HIT_D && (now - lastHitTime) > HIT_INVINCIBLE) {
+                    lastHitTime = now;
+                    ob._reacted = true;
+                    // 人のオブジェクトは消さずそのまま表示を継続
+                    if (activeObstacle === ob) { activeObstacle = null; }
+                    recordHit(ob._typeLabel);
+                    showHitFlash();
+                }
+            }
+
+            // 通過リサイクル（3000m先へ）
+            if (dz < -20) {
+                // 人間が未反応のまま通過 → 見逃しカウント
+                if (ob._triggered && !ob._reacted && ob._typeLabel === '人間') {
+                    missCount++;
+                    recordMiss(ob._typeLabel);
+                }
+                ob.visible = false;
+                ob.position.set((Math.random()-0.5)*14, 0, ob.position.z - 3000);
+                ob._triggered = false;
+                ob._reacted   = false;
+                if (activeObstacle === ob) { activeObstacle = null; }
+            }
+        });
+
+        renderer.render(scene, camera);
+    }
+
+    // ===== キーボード =====
+    window.addEventListener('keydown', function(e) {
+        var k = e.key.toLowerCase();
+        if (!keys[k]) { // 押した瞬間のみ（キーリピート除外）
+            if (k === 'w' || k === 'arrowup')   recordButtonPress('ACCEL');
+            if (k === 's' || k === 'arrowdown')  recordButtonPress('BRAKE');
+        }
+        keys[k] = true;
+    });
+    window.addEventListener('keyup', function(e) { keys[e.key.toLowerCase()] = false; });
+
+    // ===== タッチ =====
+    document.getElementById('touch-left').addEventListener('touchstart',  function(e){ e.preventDefault(); touchLeft=true; }, {passive:false});
+    document.getElementById('touch-left').addEventListener('touchend',    function(){ touchLeft=false; });
+    document.getElementById('touch-right').addEventListener('touchstart', function(e){ e.preventDefault(); touchRight=true; }, {passive:false});
+    document.getElementById('touch-right').addEventListener('touchend',   function(){ touchRight=false; });
+    document.getElementById('touch-brake').addEventListener('touchstart', function(e){ e.preventDefault(); touchBrake=true; recordButtonPress('BRAKE'); }, {passive:false});
+    document.getElementById('touch-brake').addEventListener('touchend',   function(){ touchBrake=false; });
+    document.getElementById('touch-accel').addEventListener('touchstart', function(e){ e.preventDefault(); touchAccel=true; recordButtonPress('ACCEL'); }, {passive:false});
+    document.getElementById('touch-accel').addEventListener('touchend',   function(){ touchAccel=false; });
+    // マウスでもアクセル・ブレーキ操作可能
+    document.getElementById('touch-accel').addEventListener('mousedown',  function(){ touchAccel=true; recordButtonPress('ACCEL'); });
+    document.getElementById('touch-accel').addEventListener('mouseup',    function(){ touchAccel=false; });
+    document.getElementById('touch-accel').addEventListener('mouseleave', function(){ touchAccel=false; });
+    document.getElementById('touch-brake').addEventListener('mousedown',  function(){ touchBrake=true; recordButtonPress('BRAKE'); });
+    document.getElementById('touch-brake').addEventListener('mouseup',    function(){ touchBrake=false; });
+    document.getElementById('touch-brake').addEventListener('mouseleave', function(){ touchBrake=false; });
+
+    // ===== Excel保存 =====
+    function downloadExcel() {
+        if (sessionResults.length === 0) { alert('記録がありません'); return; }
+        var wb = XLSX.utils.book_new();
+
+        function appendSummary(data) {
+            var avoidCount  = data.filter(function(r){ return r['結果'] === '回避'; }).length;
+            var hitCount_   = data.filter(function(r){ return r['結果'] === '衝突'; }).length;
+            return data.concat([
+                {},
+                { '結果': '【合計】', '対象物': '回避', 'プレイヤーID': avoidCount },
+                { '結果': '【合計】', '対象物': '衝突', 'プレイヤーID': hitCount_  },
+                { '結果': '【合計】', '対象物': '回避＋衝突', 'プレイヤーID': avoidCount + hitCount_ }
+            ]);
+        }
+
+        // シート1：全データ
+        var wsAll = XLSX.utils.json_to_sheet(appendSummary(sessionResults));
+        XLSX.utils.book_append_sheet(wb, wsAll, '全データ');
+
+        // シート2〜4：時間ブロック別
+        var blocks = ['0-5分', '5-10分', '10-15分'];
+        blocks.forEach(function(block) {
+            var filtered = sessionResults.filter(function(r){ return r['時間ブロック'] === block; });
+            var ws = XLSX.utils.json_to_sheet(appendSummary(filtered.length > 0 ? filtered : []));
+            XLSX.utils.book_append_sheet(wb, ws, block);
+        });
+
+        XLSX.writeFile(wb, 'Driving_Test_Result.xlsx');
+    }
+
+    // ===== スタートボタン =====
+    document.getElementById('start-btn').addEventListener('click', function() {
+        var age    = document.getElementById('input-age').value;
+        var gender = document.querySelector('input[name="gender"]:checked');
+        if (!age || !gender) { alert('年齢と性別を入力してください'); return; }
+        userData.playerId = String(Math.floor(1000 + Math.random() * 9000));
+        userData.age    = age;
+        userData.gender = gender.value;
+        document.getElementById('start-screen').style.display = 'none';
+        var rs = document.getElementById('rules-screen');
+        rs.style.display = '';  // インラインstyleをクリアしてCSSに委ねる
+        rs.classList.add('visible');
+    });
+
+    // ===== ルール画面のゲームスタートボタン =====
+    document.getElementById('rules-start-btn').addEventListener('click', function() {
+        var rs = document.getElementById('rules-screen');
+        rs.classList.remove('visible');
+        rs.style.display = '';  // インラインstyleをクリアしてCSSに委ねる
+        init();
+    });
+
+    // ===== 終了ボタン =====
+    document.getElementById('exit-btn').addEventListener('click', function() {
+        if (confirm('データをダウンロードして終了しますか？')) {
+            gameOver = true;
+            cancelAnimationFrame(animId);
+            downloadExcel();
+            setTimeout(function() { location.reload(); }, 1500);
+        }
+    });
+
+    // ===== ゲームオーバー画面ボタン =====
+    document.getElementById('go-save-btn').addEventListener('click', function() {
+        downloadExcel();
+    });
+    document.getElementById('go-reload-btn').addEventListener('click', function() {
+        location.reload();
+    });
+
+    // ===== リサイズ =====
+    window.addEventListener('resize', function() {
+        if (!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+})();
+</script>
+</body>
+</html>
